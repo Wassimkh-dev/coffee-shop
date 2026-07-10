@@ -22,11 +22,15 @@ export default function LazyVideo({
     const el = ref.current;
     if (!el) return;
 
+    // Keep observing after load: pausing offscreen clips saves battery and
+    // main-thread time on weaker phones with several videos on the page.
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setShouldLoad(true);
-          observer.disconnect();
+          el.play().catch(() => {});
+        } else {
+          el.pause();
         }
       },
       { rootMargin: "200px" }

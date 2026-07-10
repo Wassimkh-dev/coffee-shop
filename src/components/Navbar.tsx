@@ -26,11 +26,10 @@ export default function Navbar() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4 sm:px-6 sm:pt-6">
-      <motion.div
-        initial={{ opacity: 0, y: -24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className={`glass-panel glass-panel-strong relative z-50 flex w-full max-w-6xl items-center justify-between rounded-full px-3 py-2 transition-shadow duration-500 sm:px-4 ${
+      {/* CSS entrance (not JS-driven) so the nav is never stuck invisible
+          if hydration is slow or fails on a weak connection */}
+      <div
+        className={`glass-panel glass-panel-strong animate-[fade-down-in_0.8s_cubic-bezier(0.16,1,0.3,1)_both] relative z-50 flex w-full max-w-6xl items-center justify-between rounded-full px-3 py-2 transition-shadow duration-500 sm:px-4 ${
           scrolled ? "premium-shadow" : ""
         }`}
       >
@@ -102,7 +101,7 @@ export default function Navbar() {
             </span>
           </button>
         </div>
-      </motion.div>
+      </div>
 
       <AnimatePresence>
         {menuOpen && (
