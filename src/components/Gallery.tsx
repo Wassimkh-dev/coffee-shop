@@ -1,78 +1,139 @@
 import Image from "next/image";
-import AnimateOnScroll from "@/components/AnimateOnScroll";
+import Reveal from "@/components/Reveal";
+import LazyVideo from "@/components/LazyVideo";
+import gardenNight from "../../public/images/startup-09.jpeg";
+import neonSign from "../../public/images/startup-06.jpeg";
+import posterFoodPlate from "../../public/images/posters/food-06.jpg";
+import posterFoodMacro from "../../public/images/posters/food-07.jpg";
+import posterEspresso from "../../public/images/posters/coffee-06.jpg";
+import posterGarden from "../../public/images/posters/hero-02.jpg";
 
-const images = [
+type GalleryItem =
+  | {
+      type: "image";
+      src: typeof gardenNight;
+      alt: string;
+      span: string;
+      position?: string;
+    }
+  | {
+      type: "video";
+      src: string;
+      poster: typeof gardenNight;
+      alt: string;
+      span: string;
+      /** Extra classes for the <video> — zoom/reframe clips with baked-in text. */
+      videoClass?: string;
+      /** Always-on gradient that softens any remaining on-video text. */
+      maskClass?: string;
+    };
+
+const items: GalleryItem[] = [
   {
-    src: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&q=80",
-    alt: "Cozy coffee shop interior",
-    tall: true,
+    type: "image",
+    src: gardenNight,
+    alt: "Evenings under the garden lights at The Lawn Cafe",
+    span: "md:col-span-2 md:row-span-2",
+    position: "50% 60%",
   },
   {
-    src: "https://images.unsplash.com/photo-1511920170033-f8396924c348?w=800&q=80",
-    alt: "Beautiful latte art",
-    tall: false,
+    type: "video",
+    src: "/videos/video-06.mp4",
+    poster: posterFoodPlate,
+    alt: "A freshly grilled plate served at The Lawn Cafe",
+    span: "md:row-span-2",
+    // Right-anchored zoom crops out the watermark along the left edge.
+    videoClass: "origin-right scale-[1.45] group-hover:scale-[1.55]",
+    maskClass:
+      "absolute inset-y-0 left-0 w-1/5 bg-gradient-to-r from-charcoal/30 to-transparent",
   },
   {
-    src: "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800&q=80",
-    alt: "Barista at work",
-    tall: false,
+    type: "video",
+    src: "/videos/gallery-video.mp4",
+    poster: posterEspresso,
+    alt: "Fresh espresso pouring at the coffee bar",
+    span: "",
   },
   {
-    src: "https://images.unsplash.com/photo-1570968915860-54d5c301fa9f?w=800&q=80",
-    alt: "Coffee cup on table",
-    tall: false,
+    type: "video",
+    src: "/videos/video-07.mp4",
+    poster: posterFoodMacro,
+    alt: "A close-up, softly lit food detail shot",
+    span: "",
   },
   {
-    src: "https://images.unsplash.com/photo-1559496417-e7f25cb247f3?w=800&q=80",
-    alt: "Coffee shop exterior",
-    tall: false,
+    type: "video",
+    src: "/videos/video-09.mp4",
+    poster: posterGarden,
+    alt: "A sunlit stroll down the garden path",
+    span: "",
+  },
+  {
+    type: "image",
+    src: neonSign,
+    alt: "Golden evenings at The Lawn",
+    span: "",
+    // Keep the neon script centered in the crop
+    position: "50% 38%",
   },
 ];
 
 export default function Gallery() {
   return (
-    <section id="gallery" className="py-24 bg-stone-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <AnimateOnScroll direction="up">
-          <div className="text-center mb-16">
-            <span className="inline-block bg-amber-100 text-amber-700 text-sm font-semibold px-4 py-1.5 rounded-full mb-6 tracking-wide uppercase">
-              Gallery
-            </span>
-            <h2 className="font-serif text-4xl sm:text-5xl font-bold text-amber-950 mb-4">
-              A Peek Inside
-            </h2>
-            <p className="text-stone-500 text-lg max-w-xl mx-auto">
-              From the first pour to the last sip — moments worth savoring.
-            </p>
-          </div>
-        </AnimateOnScroll>
+    <section id="gallery" className="bg-cream py-24 sm:py-32">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <Reveal className="mx-auto max-w-2xl text-center">
+          <span className="mb-5 inline-block rounded-full bg-sage/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-sage-dark">
+            Gallery
+          </span>
+          <h2 className="text-balance font-serif text-4xl leading-tight text-charcoal sm:text-5xl">
+            Moments from The Lawn
+          </h2>
+        </Reveal>
 
-        {/* Asymmetric grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 grid-rows-2 gap-4 h-[580px]">
-          {images.map((image, i) => (
-            <AnimateOnScroll
-              key={i}
-              direction="fade"
-              delay={i * 90}
-              className={i === 0 ? "row-span-2 h-full" : "h-full"}
+        <div className="mt-14 grid grid-cols-2 gap-4 md:auto-rows-[220px] md:grid-cols-4 md:grid-flow-dense">
+          {items.map((item, i) => (
+            <Reveal
+              key={item.alt}
+              direction="scale"
+              delay={i * 0.06}
+              amount={0.2}
+              className={`group relative aspect-[4/5] overflow-hidden rounded-[1.5rem] premium-shadow md:aspect-auto ${item.span}`}
             >
-            <div
-              className="relative h-full overflow-hidden rounded-2xl group"
-            >
-              <Image
-                src={image.src}
-                alt={image.alt}
-                fill
-                className="object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-amber-950/0 group-hover:bg-amber-950/40 transition-colors duration-300 flex items-center justify-center">
-                <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full">
-                  {image.alt}
-                </span>
-              </div>
-            </div>
-            </AnimateOnScroll>
+              {item.type === "image" ? (
+                <Image
+                  src={item.src}
+                  alt={item.alt}
+                  fill
+                  sizes="(min-width: 768px) 40vw, 90vw"
+                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                  style={
+                    item.position ? { objectPosition: item.position } : undefined
+                  }
+                />
+              ) : (
+                <>
+                  <LazyVideo
+                    className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out ${
+                      item.videoClass ?? "group-hover:scale-110"
+                    }`}
+                    src={item.src}
+                    poster={item.poster.src}
+                    ariaLabel={item.alt}
+                  />
+                  {item.maskClass && (
+                    <div
+                      aria-hidden
+                      className={`pointer-events-none ${item.maskClass}`}
+                    />
+                  )}
+                </>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-charcoal/60 via-charcoal/0 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+              <p className="absolute inset-x-3 bottom-3 translate-y-1 text-sm font-medium text-ivory opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                {item.alt}
+              </p>
+            </Reveal>
           ))}
         </div>
       </div>
