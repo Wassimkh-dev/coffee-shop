@@ -47,7 +47,9 @@ export default function Menu() {
         </Reveal>
 
         <div className="relative mt-10 min-h-[320px]">
-          <AnimatePresence mode="wait">
+          {/* initial={false} keeps the first render visible in the server
+              HTML — the fade only runs when switching categories */}
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={active.id}
               initial={{ opacity: 0, y: 12 }}

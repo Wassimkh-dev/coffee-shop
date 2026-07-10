@@ -1,6 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
 import { siteConfig } from "@/lib/site-config";
 
 function WhatsAppIcon() {
@@ -31,12 +28,9 @@ function DirectionsIcon() {
 
 export default function FloatingActions() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-end justify-end gap-2.5 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:gap-3 sm:px-6 sm:pb-6"
-    >
+    // CSS entrance (delay baked into the animation) so the buttons still
+    // appear even if JS never hydrates
+    <div className="animate-[fade-up-in_0.6s_cubic-bezier(0.16,1,0.3,1)_0.6s_both] pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-end justify-end gap-2.5 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:gap-3 sm:px-6 sm:pb-6">
       <a
         href={siteConfig.mapsUrl}
         target="_blank"
@@ -57,6 +51,6 @@ export default function FloatingActions() {
       >
         <WhatsAppIcon />
       </a>
-    </motion.div>
+    </div>
   );
 }

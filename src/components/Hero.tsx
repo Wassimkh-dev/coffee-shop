@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import Image, { type StaticImageData } from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotionSafe } from "@/lib/use-reduced-motion";
 import { siteConfig } from "@/lib/site-config";
 import startup01 from "../../public/images/startup-01.jpeg";
 import startup02 from "../../public/images/startup-02.jpeg";
@@ -13,7 +13,9 @@ import startup04 from "../../public/images/startup-04.jpeg";
 import startup07 from "../../public/images/startup-07.jpeg";
 import startup06 from "../../public/images/startup-06.jpeg";
 
-gsap.registerPlugin(ScrollTrigger);
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 type Frame =
   | {
@@ -166,7 +168,14 @@ export default function Hero() {
   const headingRef = useRef<HTMLDivElement>(null);
   const finaleRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReducedMotionSafe();
+
+  // Turn on smooth anchor scrolling only once the app is interactive, so the
+  // browser's initial jump to a #hash lands instantly instead of animating
+  // through the tall hero (see globals.css).
+  useEffect(() => {
+    document.documentElement.classList.add("js-smooth");
+  }, []);
 
   useEffect(() => {
     if (reduceMotion) return;
@@ -174,6 +183,10 @@ export default function Hero() {
     const section = sectionRef.current;
     if (!section) return;
     const count = sequence.length;
+
+    // Mobile URL bars show/hide constantly while scrolling; refreshing on
+    // those height-only resizes makes the pinned hero jump mid-scrub.
+    ScrollTrigger.config({ ignoreMobileResize: true });
 
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({
@@ -243,7 +256,20 @@ export default function Hero() {
       );
     }, section);
 
-    return () => ctx.revert();
+    // Trigger positions are measured before images/fonts settle; re-measure
+    // once everything has loaded so start/end points are correct on phones.
+    const refresh = () => ScrollTrigger.refresh();
+    if (document.readyState === "complete") {
+      refresh();
+    } else {
+      window.addEventListener("load", refresh, { once: true });
+    }
+    document.fonts?.ready.then(refresh).catch(() => {});
+
+    return () => {
+      window.removeEventListener("load", refresh);
+      ctx.revert();
+    };
   }, [reduceMotion]);
 
   if (reduceMotion) {

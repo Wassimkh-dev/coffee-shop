@@ -129,8 +129,11 @@ export default function Gallery() {
                   )}
                 </>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-charcoal/60 via-charcoal/0 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-              <p className="absolute inset-x-3 bottom-3 translate-y-1 text-sm font-medium text-ivory opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+              {/* Tailwind v4 gates hover: behind (hover: hover), so touch
+                  devices never fire group-hover — show the caption statically
+                  there via pointer-coarse instead */}
+              <div className="absolute inset-0 bg-gradient-to-t from-charcoal/60 via-charcoal/0 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-coarse:opacity-100" />
+              <p className="absolute inset-x-3 bottom-3 translate-y-1 text-sm font-medium text-ivory opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 pointer-coarse:translate-y-0 pointer-coarse:opacity-100">
                 {item.alt}
               </p>
             </Reveal>

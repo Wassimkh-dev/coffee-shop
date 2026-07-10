@@ -1,18 +1,31 @@
 "use client";
 
-import { motion, useReducedMotion, type Variants } from "framer-motion";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 type Direction = "up" | "down" | "left" | "right" | "fade" | "scale";
 
-const offset: Record<Direction, Record<string, number>> = {
-  up: { y: 44 },
-  down: { y: -44 },
-  left: { x: 44 },
-  right: { x: -44 },
-  fade: {},
-  scale: { scale: 0.94 },
-};
+// Horizontal slides must stay inside the section's edge padding (16px under
+// sm, 24px under lg) or hidden elements poke past the right edge of the
+// screen and widen the page on phones.
+function hiddenTransform(direction: Direction, viewportWidth: number) {
+  const slide = viewportWidth < 640 ? 16 : viewportWidth < 1024 ? 24 : 44;
+  switch (direction) {
+    case "up":
+      return "translate3d(0, 44px, 0)";
+    case "down":
+      return "translate3d(0, -44px, 0)";
+    case "left":
+      return `translate3d(${slide}px, 0, 0)`;
+    case "right":
+      return `translate3d(${-slide}px, 0, 0)`;
+    case "scale":
+      return "scale(0.94)";
+    case "fade":
+      return "none";
+  }
+}
+
+const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 type RevealProps = {
   children: ReactNode;
@@ -24,6 +37,14 @@ type RevealProps = {
   amount?: number;
 };
 
+/**
+ * Scroll reveal built to be safe on phones and slow connections: the server
+ * HTML ships fully visible, elements are hidden only on the client once we
+ * know they sit outside the viewport, and the reveal itself is a plain CSS
+ * transition driven by an IntersectionObserver. If JS never loads or fails,
+ * nothing is ever invisible. Styles are applied straight to the DOM node so
+ * reveals don't cause React re-renders while scrolling.
+ */
 export default function Reveal({
   children,
   direction = "up",
@@ -33,102 +54,60 @@ export default function Reveal({
   once = true,
   amount = 0.2,
 }: RevealProps) {
-  const prefersReducedMotion = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
 
-  if (prefersReducedMotion) {
-    return <div className={className}>{children}</div>;
-  }
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-  const variants: Variants = {
-    hidden: { opacity: 0, ...offset[direction] },
-    visible: {
-      opacity: 1,
-      x: 0,
-      y: 0,
-      scale: 1,
-      transition: { duration, delay, ease: [0.16, 1, 0.3, 1] },
-    },
-  };
+    // Anything already on screen stays visible — hiding it would flash
+    // content the visitor may already be reading.
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) return;
 
-  return (
-    <motion.div
-      className={className}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once, amount }}
-      variants={variants}
-    >
-      {children}
-    </motion.div>
-  );
-}
+    const transition = `opacity ${duration}s ${EASE} ${delay}s, transform ${duration}s ${EASE} ${delay}s`;
+    const hide = () => {
+      el.style.transition = "";
+      el.style.opacity = "0";
+      el.style.transform = hiddenTransform(direction, window.innerWidth);
+    };
+    const show = () => {
+      el.style.transition = transition;
+      el.style.opacity = "1";
+      el.style.transform = "none";
+    };
 
-type RevealGroupProps = {
-  children: ReactNode;
-  className?: string;
-  stagger?: number;
-  once?: boolean;
-  amount?: number;
-};
+    // Tall blocks on small screens can never reach a high visible ratio, so
+    // cap the threshold at half of what actually fits in the viewport.
+    const ratioInView = window.innerHeight / Math.max(rect.height, 1);
+    const threshold = Math.min(amount, ratioInView * 0.5);
 
-export function RevealGroup({
-  children,
-  className,
-  stagger = 0.12,
-  once = true,
-  amount = 0.2,
-}: RevealGroupProps) {
-  const variants: Variants = {
-    hidden: {},
-    visible: {
-      transition: { staggerChildren: stagger },
-    },
-  };
+    hide();
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          show();
+          if (once) observer.disconnect();
+        } else if (!once) {
+          hide();
+        }
+      },
+      { threshold }
+    );
+    observer.observe(el);
 
-  return (
-    <motion.div
-      className={className}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once, amount }}
-      variants={variants}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-export function RevealItem({
-  children,
-  className,
-  direction = "up",
-  duration = 0.8,
-}: {
-  children: ReactNode;
-  className?: string;
-  direction?: Direction;
-  duration?: number;
-}) {
-  const prefersReducedMotion = useReducedMotion();
-
-  if (prefersReducedMotion) {
-    return <div className={className}>{children}</div>;
-  }
-
-  const variants: Variants = {
-    hidden: { opacity: 0, ...offset[direction] },
-    visible: {
-      opacity: 1,
-      x: 0,
-      y: 0,
-      scale: 1,
-      transition: { duration, ease: [0.16, 1, 0.3, 1] },
-    },
-  };
+    return () => {
+      observer.disconnect();
+      el.style.transition = "";
+      el.style.opacity = "";
+      el.style.transform = "";
+    };
+  }, [amount, once, direction, delay, duration]);
 
   return (
-    <motion.div className={className} variants={variants}>
+    <div ref={ref} className={className}>
       {children}
-    </motion.div>
+    </div>
   );
 }

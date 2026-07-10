@@ -1,7 +1,8 @@
 "use client";
 
-import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import type { ReactNode, MouseEvent } from "react";
+import { useReducedMotionSafe } from "@/lib/use-reduced-motion";
 
 export default function TiltCard({
   children,
@@ -10,7 +11,7 @@ export default function TiltCard({
   children: ReactNode;
   className?: string;
 }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReducedMotionSafe();
   const x = useMotionValue(0.5);
   const y = useMotionValue(0.5);
 

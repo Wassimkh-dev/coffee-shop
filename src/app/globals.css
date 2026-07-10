@@ -29,6 +29,17 @@
 }
 
 html {
+  /* clip (not hidden) blocks stray horizontal overflow from reveal
+     transforms without creating a scroll container, so the sticky
+     hero keeps working */
+  overflow-x: clip;
+}
+
+/* Smooth anchor scrolling is enabled after hydration (Hero adds this class).
+   If it's on from the first paint, browsers animate the initial #hash jump
+   through the tall hero and ScrollTrigger's load refresh can strand the
+   visitor mid-hero instead of at the section they asked for. */
+html.js-smooth {
   scroll-behavior: smooth;
 }
 
@@ -36,6 +47,38 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   background-color: var(--color-ivory);
   color: var(--color-charcoal);
+  overflow-x: clip;
+}
+
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* Entrance animations for the navbar and floating buttons — pure CSS so
+   they still run (and end visible) even if JS never hydrates */
+@keyframes fade-down-in {
+  from {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -46,8 +89,10 @@ body {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
 }
