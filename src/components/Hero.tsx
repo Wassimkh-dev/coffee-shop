@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type MouseEvent } from "react";
 import Image, { type StaticImageData } from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -104,11 +104,146 @@ const sequence: Frame[] = [
 
 const VIDEO_INDEX = sequence.findIndex((f) => f.type === "video");
 
+/**
+ * Run `cb` once the page has settled enough for layout measurements to be
+ * trustworthy. If `load` has already fired the layout is settled (images
+ * reserve their space and next/font uses zero-shift fallback metrics), so we
+ * run immediately — the tap must feel instant. Only an early tap, before
+ * `load`, waits; a hard timeout is the safety net so a slow in-app browser
+ * can never leave that tap unanswered.
+ */
+function whenReady(cb: () => void) {
+  if (document.readyState === "complete") {
+    cb();
+    return;
+  }
+
+  let done = false;
+  const run = () => {
+    if (done) return;
+    done = true;
+    cb();
+  };
+
+  window.addEventListener("load", run, { once: true });
+  // Never wait more than ~1.2s, even if load stalls on a weak connection.
+  window.setTimeout(run, 1200);
+}
+
+// Handle for the in-flight scroll tween, so a second click — or a genuine
+// user scroll — can cancel it cleanly instead of two animations fighting.
+let cancelActiveScroll: (() => void) | null = null;
+
+/**
+ * A controlled requestAnimationFrame scroll tween. We drive it ourselves
+ * rather than using native `scroll-behavior: smooth` because animating across
+ * the ~520vh pinned hero inside Instagram's in-app webview stutters and gets
+ * cut short by the URL-bar resize; a hand-rolled tween lands on the exact
+ * target every time and stops the moment the visitor takes over.
+ */
+function smoothScrollTo(targetY: number) {
+  cancelActiveScroll?.();
+
+  const maxY = Math.max(
+    0,
+    document.documentElement.scrollHeight - window.innerHeight
+  );
+  const destY = Math.max(0, Math.min(targetY, maxY));
+  const startY = window.scrollY;
+  const distance = destY - startY;
+
+  if (Math.abs(distance) < 2) {
+    window.scrollTo({ top: destY, left: 0, behavior: "instant" });
+    return;
+  }
+
+  // Distance-aware but bounded, so both short and full-page hops feel snappy.
+  const duration = Math.min(800, Math.max(450, Math.abs(distance) * 0.35));
+  const startTime = performance.now();
+  const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+  const scrollEvents = ["wheel", "touchmove"] as const;
+
+  let cancelled = false;
+  const cleanup = () => {
+    scrollEvents.forEach((e) => window.removeEventListener(e, cancel));
+    if (cancelActiveScroll === cancel) cancelActiveScroll = null;
+  };
+  function cancel() {
+    if (cancelled) return;
+    cancelled = true;
+    cleanup();
+  }
+
+  // touchmove (not touchstart) so the tap that launched this doesn't cancel it.
+  scrollEvents.forEach((e) =>
+    window.addEventListener(e, cancel, { passive: true })
+  );
+  cancelActiveScroll = cancel;
+
+  const frame = (now: number) => {
+    if (cancelled) return;
+    const t = Math.min(1, (now - startTime) / duration);
+    // behavior:"instant" overrides the page's scroll-behavior:smooth (kept on
+    // <html> by both the Next.js router and GSAP) for this call — without it
+    // each per-frame scrollTo starts its own native smooth scroll, so they
+    // thrash and the page lags ~800ms behind our easing.
+    window.scrollTo({
+      top: Math.round(startY + distance * easeOutCubic(t)),
+      left: 0,
+      behavior: "instant",
+    });
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      cleanup();
+    }
+  };
+  requestAnimationFrame(frame);
+}
+
+/**
+ * Controlled "Explore Menu" scroll. Takes over from the raw `#menu` hash jump
+ * (kept on the anchor only as a no-JS fallback) so the browser can't animate
+ * through the pinned hero, land under the navbar, or re-apply the hash later.
+ */
+function handleExploreMenu(e: MouseEvent<HTMLAnchorElement>) {
+  e.preventDefault();
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  whenReady(() => {
+    // Re-measure the pinned hero so the offsets below it are correct before we
+    // compute where the Menu section actually starts.
+    if (!reduce) ScrollTrigger.refresh();
+
+    const menu = document.getElementById("menu");
+    if (!menu) return;
+
+    // Clear the fixed navbar: measure its rendered bottom (works across
+    // breakpoints); fall back to the site's scroll-mt-24 (96px) convention.
+    const header = document.querySelector("header");
+    const navbarOffset = header
+      ? header.getBoundingClientRect().bottom + 12
+      : 96;
+
+    const targetY = Math.max(
+      0,
+      menu.getBoundingClientRect().top + window.scrollY - navbarOffset
+    );
+
+    if (reduce) {
+      window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
+    } else {
+      smoothScrollTo(targetY);
+    }
+  });
+}
+
 function CtaButtons() {
   return (
     <div className="flex flex-wrap items-center justify-center gap-3">
       <a
         href="#menu"
+        onClick={handleExploreMenu}
         className="rounded-full bg-ivory px-7 py-3.5 text-sm font-semibold text-charcoal transition-all duration-300 hover:-translate-y-0.5 hover:bg-cream hover:shadow-lg"
       >
         Explore Menu
@@ -175,6 +310,12 @@ export default function Hero() {
   // through the tall hero (see globals.css).
   useEffect(() => {
     document.documentElement.classList.add("js-smooth");
+    // Own the scroll position ourselves: stop the browser (and Instagram's
+    // in-app webview) from restoring a saved position or re-applying a #hash
+    // after our controlled scroll has already landed.
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
   }, []);
 
   useEffect(() => {
