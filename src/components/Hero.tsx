@@ -5,6 +5,11 @@ import Image, { type StaticImageData } from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useReducedMotionSafe } from "@/lib/use-reduced-motion";
+import {
+  hardenInAppBrowserScrolling,
+  isInAppBrowser,
+  sectionScrollTarget,
+} from "@/lib/in-app-browser";
 import { siteConfig } from "@/lib/site-config";
 import startup01 from "../../public/images/startup-01.jpeg";
 import startup02 from "../../public/images/startup-02.jpeg";
@@ -135,6 +140,15 @@ function whenReady(cb: () => void) {
 let cancelActiveScroll: (() => void) | null = null;
 
 /**
+ * True once the visitor is away from the hero — they tapped "Explore Menu" or
+ * simply scrolled past it. A global ScrollTrigger.refresh() scrolls the window
+ * to 0 and back to take its measurements, which is invisible at the top of the
+ * page but lands as a jump (and kills an in-flight momentum scroll) anywhere
+ * else, so once this is true the hero stops refreshing.
+ */
+let visitorLeftHero = false;
+
+/**
  * A controlled requestAnimationFrame scroll tween. We drive it ourselves
  * rather than using native `scroll-behavior: smooth` because animating across
  * the ~520vh pinned hero inside Instagram's in-app webview stutters and gets
@@ -210,25 +224,37 @@ function handleExploreMenu(e: MouseEvent<HTMLAnchorElement>) {
   e.preventDefault();
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // Instagram's in-app webview gets one instant, native jump and then we hand
+  // scrolling straight back to it: no ScrollTrigger.refresh() (it scrolls to 0
+  // and back to re-measure), no rAF tween that could fight the webview's
+  // momentum scrolling, no smooth scrolling, no waiting on `load`. Everything
+  // that kept touching the scroll position after the Menu opened is what made
+  // the page jump between categories while the visitor was reading.
+  if (isInAppBrowser()) {
+    visitorLeftHero = true;
+    const targetY = sectionScrollTarget("menu");
+    if (targetY === null) return;
+
+    window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
+    // next/image reserves space for everything below the fold, so a single
+    // correction on the next frame is enough to absorb any last-moment
+    // settling — and it is over before a finger can start scrolling.
+    requestAnimationFrame(() => {
+      const settled = sectionScrollTarget("menu");
+      if (settled !== null && Math.abs(settled - window.scrollY) > 4) {
+        window.scrollTo({ top: settled, left: 0, behavior: "instant" });
+      }
+    });
+    return;
+  }
+
   whenReady(() => {
     // Re-measure the pinned hero so the offsets below it are correct before we
     // compute where the Menu section actually starts.
     if (!reduce) ScrollTrigger.refresh();
 
-    const menu = document.getElementById("menu");
-    if (!menu) return;
-
-    // Clear the fixed navbar: measure its rendered bottom (works across
-    // breakpoints); fall back to the site's scroll-mt-24 (96px) convention.
-    const header = document.querySelector("header");
-    const navbarOffset = header
-      ? header.getBoundingClientRect().bottom + 12
-      : 96;
-
-    const targetY = Math.max(
-      0,
-      menu.getBoundingClientRect().top + window.scrollY - navbarOffset
-    );
+    const targetY = sectionScrollTarget("menu");
+    if (targetY === null) return;
 
     if (reduce) {
       window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
@@ -307,16 +333,75 @@ export default function Hero() {
 
   // Turn on smooth anchor scrolling only once the app is interactive, so the
   // browser's initial jump to a #hash lands instantly instead of animating
-  // through the tall hero (see globals.css).
+  // through the tall hero (see globals.css). Instagram's in-app webview is the
+  // exception: there every scroll stays native and instant, because a second
+  // animated scroll on top of its momentum scrolling reads as a jump.
   useEffect(() => {
-    document.documentElement.classList.add("js-smooth");
+    const cleanUpInApp = hardenInAppBrowserScrolling();
+    if (!isInAppBrowser()) {
+      document.documentElement.classList.add("js-smooth");
+    }
+
     // Own the scroll position ourselves: stop the browser (and Instagram's
     // in-app webview) from restoring a saved position or re-applying a #hash
     // after our controlled scroll has already landed.
     if ("scrollRestoration" in history) {
       history.scrollRestoration = "manual";
     }
+
+    // ScrollTrigger hands scroll restoration back to the browser at the end of
+    // every refresh (it re-applies whatever it recorded when it registered —
+    // "auto"), so claim it back each time.
+    const keepManualRestoration = () => {
+      if (history.scrollRestoration !== "manual") {
+        history.scrollRestoration = "manual";
+      }
+    };
+    ScrollTrigger.addEventListener("refresh", keepManualRestoration);
+
+    return () => {
+      ScrollTrigger.removeEventListener("refresh", keepManualRestoration);
+      cleanUpInApp();
+    };
   }, []);
+
+  // Instagram's in-app webview resizes the viewport as its chrome slides in and
+  // out, so `height: 520vh` is re-evaluated mid-scroll — a 60px chrome moves
+  // everything below the hero by ~310px, and WebKit has no scroll anchoring to
+  // absorb it. That is what made the Menu jump between categories, and as far
+  // as Events, while the visitor was only scrolling. Freeze the hero at the
+  // pixel height it first measured so the document height stops moving; only a
+  // width change (orientation) re-measures. Safari and desktop keep the fluid
+  // 520vh, where `vh` never changes while scrolling.
+  useEffect(() => {
+    if (reduceMotion || !isInAppBrowser()) return;
+
+    const section = sectionRef.current;
+    if (!section) return;
+
+    let width = window.innerWidth;
+    const lockHeight = () => {
+      section.style.height = "";
+      const measured = Math.round(section.getBoundingClientRect().height);
+      section.style.height = `${measured}px`;
+    };
+
+    const onResize = () => {
+      // Height-only means the webview's chrome moved, which is exactly what we
+      // are ignoring. Anything else is a real orientation/layout change.
+      if (window.innerWidth === width) return;
+      width = window.innerWidth;
+      lockHeight();
+      ScrollTrigger.refresh();
+    };
+
+    lockHeight();
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      section.style.height = "";
+    };
+  }, [reduceMotion]);
 
   useEffect(() => {
     if (reduceMotion) return;
@@ -324,10 +409,22 @@ export default function Hero() {
     const section = sectionRef.current;
     if (!section) return;
     const count = sequence.length;
+    const inApp = isInAppBrowser();
 
     // Mobile URL bars show/hide constantly while scrolling; refreshing on
     // those height-only resizes makes the pinned hero jump mid-scrub.
-    ScrollTrigger.config({ ignoreMobileResize: true });
+    ScrollTrigger.config({
+      ignoreMobileResize: true,
+      // In the in-app webview, drop GSAP's own late refreshes: "load" can fire
+      // long after the visitor has started reading, and "visibilitychange"
+      // fires every time they come back from the Instagram app. Both would
+      // scroll the page to 0 and back to re-measure, right under the visitor.
+      // "resize" stays for orientation changes — ignoreMobileResize already
+      // filters out the chrome's height-only ones.
+      ...(inApp ? { autoRefreshEvents: "DOMContentLoaded,resize" } : null),
+    });
+
+    let heroTrigger: ScrollTrigger | undefined;
 
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({
@@ -395,11 +492,49 @@ export default function Hero() {
         { autoAlpha: 1, y: 0, duration: 0.55 },
         count - 0.85
       );
+
+      heroTrigger = tl.scrollTrigger;
     }, section);
+
+    // In the in-app webview the hero's scroll story steps aside entirely while
+    // the visitor is somewhere else on the page: a disabled ScrollTrigger is
+    // skipped by every refresh, so nothing about the hero can measure — or
+    // move — the page while they read the Menu. It comes back as soon as the
+    // hero is on screen again, so scrolling up still plays the story.
+    let heroObserver: IntersectionObserver | undefined;
+    if (inApp && heroTrigger) {
+      const trigger = heroTrigger;
+      let heroLive = true;
+      heroObserver = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting && !heroLive) {
+          heroLive = true;
+          // enable(false, false): keep the current progress and skip the
+          // refresh — the frozen hero height means the measurements taken on
+          // mount are still valid — then re-sync from the live scroll.
+          trigger.enable(false, false);
+          ScrollTrigger.update();
+        } else if (!entry.isIntersecting && heroLive) {
+          heroLive = false;
+          visitorLeftHero = true;
+          // disable(false) leaves every style exactly as it is; without the
+          // `false` GSAP would revert the hero mid-story.
+          trigger.disable(false);
+        }
+      });
+      heroObserver.observe(section);
+    }
 
     // Trigger positions are measured before images/fonts settle; re-measure
     // once everything has loaded so start/end points are correct on phones.
-    const refresh = () => ScrollTrigger.refresh();
+    const refresh = () => {
+      // A global refresh scrolls the window to 0 and back to measure. That is
+      // invisible at the top of the page and a visible jump anywhere else, so
+      // in the in-app webview we skip any refresh that arrives after the
+      // visitor has moved on — a slow `load` there can land seconds after the
+      // tap on "Explore Menu".
+      if (inApp && (visitorLeftHero || window.scrollY > 4)) return;
+      ScrollTrigger.refresh();
+    };
     if (document.readyState === "complete") {
       refresh();
     } else {
@@ -409,6 +544,12 @@ export default function Hero() {
 
     return () => {
       window.removeEventListener("load", refresh);
+      heroObserver?.disconnect();
+      if (inApp) {
+        ScrollTrigger.config({
+          autoRefreshEvents: "visibilitychange,DOMContentLoaded,load,resize",
+        });
+      }
       ctx.revert();
     };
   }, [reduceMotion]);

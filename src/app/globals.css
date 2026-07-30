@@ -43,6 +43,29 @@ html.js-smooth {
   scroll-behavior: smooth;
 }
 
+/* Instagram's in-app browser (see src/lib/in-app-browser.ts): its native chrome
+   resizes the whole viewport mid-scroll and WebKit has no scroll anchoring to
+   absorb the reflow, so everything scroll-related here stays plain and native.
+   `!important` because both the Next.js router and GSAP re-assert
+   `scroll-behavior: smooth` inline on <html>; a second animated scroll on top
+   of the webview's momentum reads as a jump. Safari and desktop are untouched —
+   they never get this class. */
+html.in-app-browser,
+html.in-app-browser body {
+  scroll-behavior: auto !important;
+}
+
+/* No scroll-snap either: a snap container that re-snaps after one of those
+   viewport resizes is another way for the page to move on its own. Purely
+   behavioural — the menu's category pills still scroll and look identical. */
+html.in-app-browser .snap-x {
+  scroll-snap-type: none;
+}
+
+html.in-app-browser .snap-start {
+  scroll-snap-align: none;
+}
+
 body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   background-color: var(--color-ivory);
