@@ -117,7 +117,7 @@ export const menuCategories: MenuCategory[] = [
       {
         name: "Grilled Chicken",
         price: 7.0,
-        description: "150g chicken breast, iceberg, garlic mayo, mustard",
+        description: "150g chicken breast, iceberg, garlic mayo, barbecue",
       },
       {
         name: "Sweet Heat",
