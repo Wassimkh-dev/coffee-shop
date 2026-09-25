@@ -111,7 +111,7 @@ export const menuCategories: MenuCategory[] = [
     items: [
       {
         name: "The double melt",
-        price: 10.0,
+        price: 11.0,
         description: "2 beef patties, 2 cheddar patties, barbecue sauce",
       },
       {
@@ -121,7 +121,7 @@ export const menuCategories: MenuCategory[] = [
       },
       {
         name: "Sweet Heat",
-        price: 9.0,
+        price: 10.0,
         description: "150g beef patty, caramelized onion, rocca, barbecue sauce",
       },
       {
@@ -136,7 +136,7 @@ export const menuCategories: MenuCategory[] = [
       },
       {
         name: "Special burger",
-        price: 7.0,
+        price: 8.0,
         description:
           "Fried crunchy chicken, turkey, lettuce, barbeque sauce, honey mustard, cheddar",
       },
